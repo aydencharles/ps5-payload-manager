@@ -27,6 +27,11 @@
 static char log_buffer[MAX_LOG_LINES][MAX_LOG_LINE_LEN];
 static int log_head = 0;
 static int log_count = 0;
+static volatile sig_atomic_t resume_flag = 0;
+
+void handle_sigcont(int sig) {
+    resume_flag = 1;
+}
 
 void nm_log(const char *fmt, ...) {
     char line[MAX_LOG_LINE_LEN];
@@ -426,13 +431,31 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
     return ret;
 }
 
+/* PS5 System Calls (Internal) */
+extern int sceNetCtlInit();
+extern int sceUserServiceInitialize(void*);
+
 int main(int argc, char *argv[]) {
     struct MHD_Daemon *daemon;
     unsigned short port = DEFAULT_PORT;
     nm_log("[NextMenu] Starting Native Core v%s on port %d...\n", MENU_VERSION, port);
 
-    /* Ignore SIGPIPE to prevent crashes on socket disconnects */
+    /* Initialize PS5 System Services */
+    nm_log("[NextMenu] Initializing system services...\n");
+    if (sceNetCtlInit() == 0) {
+        nm_log("[NextMenu] Network Controller initialized.\n");
+    }
+    
+    int user_prio = 256;
+    if (sceUserServiceInitialize(&user_prio) == 0) {
+        nm_log("[NextMenu] User Service initialized.\n");
+    }
+
+    /* Signal Resilience */
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+    signal(SIGCONT, handle_sigcont);
 
     /* Start the MHD daemon */
     daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
@@ -447,22 +470,66 @@ int main(int argc, char *argv[]) {
     nm_log("[NextMenu] Server is running. Visit /shutdown to exit.\n");
 
     /* Startup Notification */
-    char ip[64];
-    if (nm_get_local_ip(ip, sizeof(ip)) != 0) {
-        strcpy(ip, "unknown");
+    char current_ip[64] = "unknown";
+    if (nm_get_local_ip(current_ip, sizeof(current_ip)) == 0) {
+        nm_notify("Next Menu v%s\nIP: %s\nPort: %d", MENU_VERSION, current_ip, port);
+    } else {
+        nm_notify("Next Menu v%s\nWaiting for Network...", MENU_VERSION);
     }
-    nm_notify("Next Menu v%s\nIP: %s\nPort: %d", MENU_VERSION, ip, port);
 
     /* Start Autoload Sequence (if config exists) */
     nm_autoload_start();
 
-    /* Keep the daemon running until keep_running is 0 */
+    /* Watchdog and main loop */
+    int network_check_timer = 0;
     while (keep_running) {
         usleep(100000); /* 100ms sleep */
+        
+        /* Immediate Wake-up Recovery */
+        if (resume_flag) {
+            resume_flag = 0;
+            nm_log("[NextMenu] Console resumed from standby. Refreshing network stack...\n");
+            nm_autoload_reset(); /* Reset UI state if needed */
+            
+            /* Force a check right now */
+            network_check_timer = 50; 
+        }
+
+        /* Network Watchdog (every 5 seconds) */
+        if (++network_check_timer >= 50) {
+            network_check_timer = 0;
+            char new_ip[64] = "unknown";
+            int has_ip = (nm_get_local_ip(new_ip, sizeof(new_ip)) == 0);
+            
+            /* If IP changed or we recovered from no-IP state, or if we just resumed */
+            if (has_ip && (strcmp(new_ip, current_ip) != 0 || strcmp(current_ip, "unknown") == 0)) {
+                nm_log("[NextMenu] Network state refresh: %s -> %s. Restarting server...\n", current_ip, new_ip);
+                if (daemon) MHD_stop_daemon(daemon);
+                
+                /* Give it a moment to release ports and for system to stabilize */
+                usleep(800000); 
+                
+                daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG,
+                                         port, NULL, NULL, &on_request, NULL,
+                                         MHD_OPTION_END);
+                
+                if (daemon) {
+                    strcpy(current_ip, new_ip);
+                    nm_log("[NextMenu] Server restored on %s:%d\n", current_ip, port);
+                    nm_notify("Next Menu: Service Restored\nIP: %s", current_ip);
+                } else {
+                    nm_log("[NextMenu] !!! Failed to restore server!\n");
+                }
+            } else if (!has_ip && strcmp(current_ip, "unknown") != 0) {
+                /* Lost connection */
+                nm_log("[NextMenu] Network lost (was %s)\n", current_ip);
+                strcpy(current_ip, "unknown");
+            }
+        }
     }
 
     nm_log("[NextMenu] Shutting down...\n");
-    MHD_stop_daemon(daemon);
+    if (daemon) MHD_stop_daemon(daemon);
     
     /* Give some time for sockets to close before process exits */
     sleep(1);

@@ -8,7 +8,7 @@ CC     := /opt/ps5-payload-sdk/bin/prospero-clang
 SDK      := /opt/ps5-payload-sdk
 TARGET   := $(SDK)/target
 INCLUDES := -Iinclude -I$(TARGET)/include
-LIBS     := -L$(TARGET)/lib -lmicrohttpd -lpthread
+LIBS     := -L$(TARGET)/lib -lmicrohttpd -lpthread -lSceNetCtl -lSceUserService
 
 # Source Files
 SRCS := src/main.c src/payload_mgr.c src/ps5_launcher.c src/notification.c src/utils.c src/autoload.c
