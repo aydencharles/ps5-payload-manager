@@ -18,3 +18,4 @@ void nm_autoload_reset();
  */
 int nm_autoload_get_remaining_seconds();
 void nm_autoload_get_status(int *total, int *done, char *current);
+void nm_autoload_update_config_entry(const char *old_filename, const char *new_filename);

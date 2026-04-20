@@ -15,7 +15,7 @@ echo "--- Deploying Next Menu to $PS5_IP ---"
 
 # 1. Shutdown current instance
 echo "[1/4] Requesting shutdown at http://$PS5_IP:$MENU_PORT/shutdown..."
-curl -s --connect-timeout 2 http://$PS5_IP:$MENU_PORT/shutdown > /dev/null 2>&1
+curl -s --connect-timeout 2 --max-time 4 http://$PS5_IP:$MENU_PORT/shutdown > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     echo "      Shutdown command sent."
 else

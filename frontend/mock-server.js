@@ -19,6 +19,26 @@ let logs = [
   "[NextMenu] Found 3 payloads on storage"
 ];
 
+const remoteRepository = [
+  {
+    name: "ftpsrv",
+    filename: "ftpsrv_v0.19.elf",
+    url: "https://itsplk.github.io/ps5_payloads/payloads/ftpsrv_v0.19.elf",
+    description: "A simple FTP server that accepts connections on port 2121",
+    version: "v0.19",
+    checksum: "e6c1babbfd5e1b766d12b659853b514b9faedf6333cbe8cb514b1a3e79b7ce39"
+  },
+  {
+    name: "kstuff-lite",
+    filename: "kstuff-lite_v1.03.elf",
+    url: "https://itsplk.github.io/ps5_payloads/payloads/kstuff-lite_v1.03.elf",
+    description: "Lite version of kstuff",
+    version: "v1.03",
+    checksum: "54df47a48d9c5ee4338ef70ba66093908a4f2845e53468bdd7c080b65d7488c1"
+  }
+];
+let lastRepositoryUpdate = Math.floor(Date.now() / 1000);
+
 let autoloadStatus = {
   remaining: 10,
   total: 2,
@@ -81,8 +101,36 @@ app.get('/autoload_status', (req, res) => {
 app.get('/get_config', (req, res) => {
   res.json({
     AUTOLOAD_ENABLED: true,
-    AUTOLOAD_LIST: "goldhen_v2.4b17.elf,etaHEN_1.8.elf"
+    AUTOLOAD_LIST: "goldhen_v2.4b17.elf,etaHEN_1.8.elf",
+    LAST_REPOSITORY_UPDATE: lastRepositoryUpdate
   });
+});
+
+app.get('/repository_payloads', (req, res) => {
+  res.json({
+    payloads: remoteRepository,
+    last_update: lastRepositoryUpdate,
+    cache_status: 'ok'
+  });
+});
+
+app.get('/repository_refresh', (req, res) => {
+  lastRepositoryUpdate = Math.floor(Date.now() / 1000);
+  logs.push(`[NextMenu] Repository manually refreshed`);
+  res.json({
+    payloads: remoteRepository,
+    last_update: lastRepositoryUpdate,
+    cache_status: 'ok'
+  });
+});
+
+app.get('/repository_install', (req, res) => {
+  const { filename } = req.query;
+  if (!filename) {
+    return res.status(400).json({ ok: false, message: 'Missing filename' });
+  }
+  logs.push(`[NextMenu] Repository install requested: ${filename}`);
+  res.json({ ok: true, message: `Installed ${filename}` });
 });
 
 app.post('/set_config', (req, res) => {

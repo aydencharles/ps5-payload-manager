@@ -20,10 +20,20 @@
 #define ROUTE_ABORT "/abort"
 #define ROUTE_AUTOLOAD_STATUS "/autoload_status"
 #define ROUTE_AUTOLOAD_CLEAR "/autoload_clear"
+#define ROUTE_REPO_LIST "/repository_payloads"
+#define ROUTE_REPO_REFRESH "/repository_refresh"
+#define ROUTE_REPO_INSTALL "/repository_install"
+#define ROUTE_REPO_PUSH "/repository_push"
+#define ROUTE_REPO_INSTALL_PUSH "/repository_install_push"
 
 #define MENU_VERSION "1.0.2-native"
 #define AUTOLOAD_CONFIG_PATH "/data/next_menu/autoload.txt"
 #define NEXT_CONFIG_PATH "/data/next_menu/next_config.txt"
+#define REPOSITORY_CACHE_PATH "/data/next_menu/repository_cache.json"
+#define PAYLOADS_STORAGE_DIR "/data/next_menu/payloads"
+#define REPOSITORY_SOURCE_URL                                                  \
+  "https://itsplk.github.io/ps5_payloads/ps5_payloads.json"
+#define REPOSITORY_REFRESH_INTERVAL_SEC 86400
 
 /* Logging */
 void nm_log(const char *fmt, ...);

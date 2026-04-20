@@ -186,3 +186,41 @@ void nm_autoload_reset() {
     autoload_done_count = 0;
     strcpy(autoload_current_name, "");
 }
+
+void nm_autoload_update_config_entry(const char *old_filename, const char *new_filename) {
+    FILE *f = fopen(AUTOLOAD_CONFIG_PATH, "r");
+    if (!f) return;
+
+    char lines[100][256];
+    int line_count = 0;
+    int modified = 0;
+
+    while (fgets(lines[line_count], sizeof(lines[0]), f) && line_count < 100) {
+        char clean_line[256];
+        strcpy(clean_line, lines[line_count]);
+        clean_line[strcspn(clean_line, "\r\n")] = 0;
+        
+        if (strcmp(clean_line, old_filename) == 0) {
+            modified = 1;
+            if (new_filename) {
+                snprintf(lines[line_count], sizeof(lines[0]), "%s\n", new_filename);
+                line_count++;
+            }
+            /* If new_filename is NULL, we just skip incrementing line_count, effectively deleting it */
+        } else {
+            line_count++;
+        }
+    }
+    fclose(f);
+
+    if (modified) {
+        f = fopen(AUTOLOAD_CONFIG_PATH, "w");
+        if (f) {
+            for (int i = 0; i < line_count; i++) {
+                fputs(lines[i], f);
+            }
+            fclose(f);
+            nm_log("[Autoload] Config updated: replaced/removed %s\n", old_filename);
+        }
+    }
+}

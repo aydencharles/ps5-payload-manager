@@ -153,7 +153,45 @@ struct UploadStatus {
     FILE *fp;
     size_t total_size;
     int error;
+    char filename[256];
+    char temp_path[512];
 };
+
+static void read_next_config_values(int *enabled, long *repo_update) {
+    FILE *f = fopen(NEXT_CONFIG_PATH, "r");
+    char line[256];
+
+    *enabled = 0;
+    *repo_update = 0;
+
+    if (!f) {
+        return;
+    }
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strncmp(line, "AUTOLOAD_ENABLED=", 17) == 0) {
+            *enabled = atoi(line + 17);
+        } else if (strncmp(line, "LAST_REPOSITORY_UPDATE=", 23) == 0) {
+            *repo_update = atol(line + 23);
+        }
+    }
+    fclose(f);
+}
+
+static int write_next_config_values(int enabled, long repo_update) {
+    FILE *f;
+
+    mkdir(BASE_DATA_DIR, 0777);
+    f = fopen(NEXT_CONFIG_PATH, "w");
+    if (!f) {
+        return -1;
+    }
+
+    fprintf(f, "AUTOLOAD_ENABLED=%d\n", enabled ? 1 : 0);
+    fprintf(f, "LAST_REPOSITORY_UPDATE=%ld\n", repo_update);
+    fclose(f);
+    return 0;
+}
 
 /* Callback for handling HTTP requests */
 static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
@@ -213,6 +251,47 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
             *con_cls = status;
             return MHD_YES;
         }
+
+        if (strcmp(url, ROUTE_REPO_PUSH) == 0 && strcmp(method, "POST") == 0) {
+            struct PostStatus *status = malloc(sizeof(struct PostStatus));
+            status->data = NULL;
+            status->size = 0;
+            status->error = 0;
+            *con_cls = status;
+            return MHD_YES;
+        }
+
+        if (strncmp(url, ROUTE_REPO_INSTALL_PUSH, strlen(ROUTE_REPO_INSTALL_PUSH)) == 0
+                && strcmp(method, "POST") == 0) {
+            struct UploadStatus *status = malloc(sizeof(struct UploadStatus));
+            status->fp = NULL;
+            status->total_size = 0;
+            status->error = 0;
+            const char *filename = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "filename");
+            if (filename && !strstr(filename, "/") && !strstr(filename, "..")) {
+                char path[512];
+                mkdir(BASE_DATA_DIR, 0777);
+                mkdir(PAYLOADS_STORAGE_DIR, 0777);
+                snprintf(path, sizeof(path), "%s/%s.part", PAYLOADS_STORAGE_DIR, filename);
+                strncpy(status->filename, filename, sizeof(status->filename) - 1);
+                status->filename[sizeof(status->filename) - 1] = '\0';
+                strncpy(status->temp_path, path, sizeof(status->temp_path) - 1);
+                status->temp_path[sizeof(status->temp_path) - 1] = '\0';
+
+                status->fp = fopen(path, "wb");
+                if (!status->fp) {
+                    nm_log("[NextMenu] !!! Failed to open for install: %s\n", path);
+                    status->error = 1;
+                } else {
+                    nm_log("[NextMenu] Installing payload: %s\n", path);
+                }
+            } else {
+                nm_log("[NextMenu] !!! install_push: invalid filename\n");
+                status->error = 1;
+            }
+            *con_cls = status;
+            return MHD_YES;
+        }
         
         *con_cls = (void*)1;
         return MHD_YES;
@@ -252,11 +331,10 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
                 }
 
                 if (enabled != -1) {
-                    mkdir(BASE_DATA_DIR, 0777);
-                    FILE *ef = fopen(NEXT_CONFIG_PATH, "w");
-                    if (ef) {
-                        fprintf(ef, "AUTOLOAD_ENABLED=%d\n", enabled);
-                        fclose(ef);
+                    int existing_enabled = 0;
+                    long last_repo_update = 0;
+                    read_next_config_values(&existing_enabled, &last_repo_update);
+                    if (write_next_config_values(enabled, last_repo_update) == 0) {
                         nm_log("[NextMenu] Saved config to %s\n", NEXT_CONFIG_PATH);
                     }
                     if (enabled == 0) nm_autoload_abort();
@@ -306,6 +384,39 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
         }
     }
 
+    /* Handle POST data for /repository_push (browser fetched JSON) */
+    if (strcmp(url, ROUTE_REPO_PUSH) == 0 && strcmp(method, "POST") == 0) {
+        struct PostStatus *status = (struct PostStatus *)*con_cls;
+        if (*upload_data_size != 0) {
+            char *nd = realloc(status->data, status->size + *upload_data_size + 1);
+            if (!nd) { status->error = 1; }
+            else {
+                status->data = nd;
+                memcpy(status->data + status->size, upload_data, *upload_data_size);
+                status->size += *upload_data_size;
+                status->data[status->size] = '\0';
+            }
+            *upload_data_size = 0;
+            return MHD_YES;
+        } else {
+            int ok = -1;
+            if (status->data && !status->error)
+                ok = payload_mgr_repository_push_json(status->data, status->size);
+            if (status->data) free(status->data);
+            free(status);
+            *con_cls = NULL;
+
+            /* Return the current list JSON so the frontend refreshes in one trip */
+            size_t len = payload_mgr_repository_list_json(response_buffer, sizeof(response_buffer), 0);
+            struct MHD_Response *resp = MHD_create_response_from_buffer(len, (void *)response_buffer, MHD_RESPMEM_MUST_COPY);
+            MHD_add_response_header(resp, "Content-Type", "application/json");
+            MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
+            enum MHD_Result ret2 = MHD_queue_response(conn, ok == 0 ? MHD_HTTP_OK : MHD_HTTP_BAD_REQUEST, resp);
+            MHD_destroy_response(resp);
+            return ret2;
+        }
+    }
+
     /* Chunked data arrival */
     if (strncmp(url, ROUTE_UPLOAD, strlen(ROUTE_UPLOAD)) == 0) {
         struct UploadStatus *status = (struct UploadStatus *)*con_cls;
@@ -341,6 +452,51 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
         }
     }
 
+    /* Chunked data arrival for /repository_install_push */
+    if (strncmp(url, ROUTE_REPO_INSTALL_PUSH, strlen(ROUTE_REPO_INSTALL_PUSH)) == 0) {
+        struct UploadStatus *status = (struct UploadStatus *)*con_cls;
+        if (*upload_data_size != 0) {
+            if (status->fp && !status->error) {
+                size_t written = fwrite(upload_data, 1, *upload_data_size, status->fp);
+                if (written != *upload_data_size) { status->error = 1; }
+                status->total_size += written;
+            }
+            *upload_data_size = 0;
+            return MHD_YES;
+        } else {
+            if (status->fp) { fflush(status->fp); fclose(status->fp); }
+            int err = status->error;
+
+            if (!err) {
+                /* Commit the install: verify SHA256 and move to final destination */
+                if (payload_mgr_repository_install_commit(status->filename, status->temp_path, response_buffer, sizeof(response_buffer)) != 0) {
+                    err = 1;
+                }
+            }
+
+            nm_log("[NextMenu] Payload install %s (%zu bytes)\n",
+                   err ? "FAILED" : "complete", status->total_size);
+            free(status);
+            *con_cls = NULL;
+            if (err && strlen(response_buffer) == 0) {
+                snprintf(response_buffer, sizeof(response_buffer), "Write error");
+            }
+            char json_resp[1024];
+            snprintf(json_resp, sizeof(json_resp),
+                     "{\"ok\":%s,\"message\":\"%s\"}",
+                     err ? "false" : "true",
+                     err ? response_buffer : "Installed");
+            struct MHD_Response *resp2 = MHD_create_response_from_buffer(
+                strlen(json_resp), (void *)json_resp, MHD_RESPMEM_MUST_COPY);
+            MHD_add_response_header(resp2, "Content-Type", "application/json");
+            MHD_add_response_header(resp2, "Access-Control-Allow-Origin", "*");
+            enum MHD_Result ret2 = MHD_queue_response(
+                conn, err ? MHD_HTTP_INTERNAL_SERVER_ERROR : MHD_HTTP_OK, resp2);
+            MHD_destroy_response(resp2);
+            return ret2;
+        }
+    }
+
     /* Only log significant requests, not pollers like /log */
     if (strcmp(url, ROUTE_LOG) != 0 && strcmp(url, ROUTE_INDEX) != 0 && strcmp(url, ROUTE_INDEX_HTML) != 0) {
         nm_log("[NextMenu] Request: %s %s\n", method, url);
@@ -359,6 +515,14 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
         size_t len = payload_mgr_list_json(response_buffer, sizeof(response_buffer));
         resp = MHD_create_response_from_buffer(len, (void *)response_buffer, MHD_RESPMEM_MUST_COPY);
         MHD_add_response_header(resp, "Content-Type", "application/json");
+    } else if (strcmp(url, ROUTE_REPO_LIST) == 0) {
+        size_t len = payload_mgr_repository_list_json(response_buffer, sizeof(response_buffer), 0);
+        resp = MHD_create_response_from_buffer(len, (void *)response_buffer, MHD_RESPMEM_MUST_COPY);
+        MHD_add_response_header(resp, "Content-Type", "application/json");
+    } else if (strcmp(url, ROUTE_REPO_REFRESH) == 0) {
+        size_t len = payload_mgr_repository_list_json(response_buffer, sizeof(response_buffer), 1);
+        resp = MHD_create_response_from_buffer(len, (void *)response_buffer, MHD_RESPMEM_MUST_COPY);
+        MHD_add_response_header(resp, "Content-Type", "application/json");
     } else if (strncmp(url, ROUTE_LOAD_PAYLOAD, strlen(ROUTE_LOAD_PAYLOAD)) == 0) {
         const char *path = url + strlen(ROUTE_LOAD_PAYLOAD);
         if (ps5_launch_elf(path) == 0) {
@@ -371,15 +535,13 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
     } else if (strncmp(url, ROUTE_DELETE, strlen(ROUTE_DELETE)) == 0) {
         const char *filename = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "filename");
         if (filename) {
-            char path[512];
             /* Basic safety: skip if filename contains / or .. */
             if (strstr(filename, "/") || strstr(filename, "..")) {
                 const char *err = "Invalid filename\n";
                 resp = MHD_create_response_from_buffer(strlen(err), (void *)err, MHD_RESPMEM_PERSISTENT);
             } else {
-                snprintf(path, sizeof(path), "%s/%s", BASE_DATA_DIR, filename);
-                if (remove(path) == 0) {
-                    nm_log("[NextMenu] Deleted payload: %s\n", path);
+                if (payload_mgr_delete_payload_file(filename) == 0) {
+                    nm_log("[NextMenu] Deleted payload: %s\n", filename);
                     resp = MHD_create_response_from_buffer(strlen(MSG_OK), (void *)MSG_OK, MHD_RESPMEM_PERSISTENT);
                 } else {
                     const char *err = "Failed to delete file\n";
@@ -460,18 +622,9 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
         resp = MHD_create_response_from_buffer(strlen(response_buffer), (void *)response_buffer, MHD_RESPMEM_MUST_COPY);
         MHD_add_response_header(resp, "Content-Type", "application/json");
     } else if (strcmp(url, ROUTE_GET_CONFIG) == 0) {
-        /* Check if enabled */
         int enabled = 0;
-        FILE *ef = fopen(NEXT_CONFIG_PATH, "r");
-        if (ef) {
-            char line[128];
-            while (fgets(line, sizeof(line), ef)) {
-                if (strncmp(line, "AUTOLOAD_ENABLED=", 17) == 0) {
-                    enabled = atoi(line + 17);
-                }
-            }
-            fclose(ef);
-        }
+        long last_repo_update = 0;
+        read_next_config_values(&enabled, &last_repo_update);
 
         /* Get list */
         char list_buf[4096] = {0};
@@ -489,8 +642,9 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
             fclose(f);
         }
 
-        snprintf(response_buffer, sizeof(response_buffer), "{\"AUTOLOAD_ENABLED\":%s,\"AUTOLOAD_LIST\":\"%s\"}", 
-                enabled ? "true" : "false", list_buf);
+        snprintf(response_buffer, sizeof(response_buffer),
+            "{\"AUTOLOAD_ENABLED\":%s,\"AUTOLOAD_LIST\":\"%s\",\"LAST_REPOSITORY_UPDATE\":%ld}",
+            enabled ? "true" : "false", list_buf, last_repo_update);
         resp = MHD_create_response_from_buffer(strlen(response_buffer), (void *)response_buffer, MHD_RESPMEM_MUST_COPY);
         MHD_add_response_header(resp, "Content-Type", "application/json");
     } else if (strcmp(url, "/events") == 0) {
@@ -534,7 +688,7 @@ int main(int argc, char *argv[]) {
     if (sceNetCtlInit() == 0) {
         nm_log("[NextMenu] Network Controller initialized.\n");
     }
-    
+
     int user_prio = 256;
     if (sceUserServiceInitialize(&user_prio) == 0) {
         nm_log("[NextMenu] User Service initialized.\n");
@@ -557,6 +711,9 @@ int main(int argc, char *argv[]) {
     }
 
     nm_log("[NextMenu] Server is running. Visit /shutdown to exit.\n");
+
+    /* Try cache refresh (no-op if network unavailable; browser push handles updates) */
+    payload_mgr_repository_ensure_fresh(0);
 
     /* Startup Notification */
     char current_ip[64] = "unknown";

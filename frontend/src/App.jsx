@@ -84,8 +84,6 @@ const PayloadName = ({ path, className, versionClassName, stacked = false }) => 
   );
 };
 
-const PAYLOAD_EXPLORER_URL = 'https://itsplk.github.io/ps5_payloads/ps5_payloads.json'
-
 // --- Custom Hook for Gamepad Navigation ---
 function useGamepadNavigation(view, setView) {
   useEffect(() => {
@@ -371,15 +369,40 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload }) => {
   const [remotePayloads, setRemotePayloads] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState(0)
 
-  const fetchRemote = async () => {
+  const PAYLOAD_REPO_URL = 'https://itsplk.github.io/ps5_payloads/ps5_payloads.json'
+
+  const fetchRemote = async (force = false) => {
     setLoading(true)
     setError(false)
     try {
-      const res = await fetch(PAYLOAD_EXPLORER_URL)
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      if (Array.isArray(data)) setRemotePayloads(data)
+      let data
+
+      if (force) {
+        // Browser fetches JSON over HTTPS (no TLS issues in the browser),
+        // then POSTs it to the daemon which stores it as the local cache.
+        const ghRes = await fetch(PAYLOAD_REPO_URL)
+        if (!ghRes.ok) throw new Error('GitHub fetch failed')
+        const rawJson = await ghRes.text()
+
+        const pushRes = await fetch('/repository_push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: rawJson,
+        })
+        if (!pushRes.ok) throw new Error('Push to daemon failed')
+        data = await pushRes.json()
+      } else {
+        // Normal load: read from the daemon's local cache
+        const res = await fetch('/repository_payloads')
+        if (!res.ok) throw new Error()
+        data = await res.json()
+      }
+
+      if (!Array.isArray(data?.payloads)) throw new Error()
+      setRemotePayloads(data.payloads)
+      setLastUpdate(Number(data.last_update || 0))
     } catch (e) {
       setError(true)
     } finally {
@@ -470,7 +493,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload }) => {
                   <div className="flex items-center space-x-4">
                     {remoteMatch?.isUpdate && (
                        <button
-                        onClick={() => onInstall(remoteMatch, fileName)}
+                        onClick={() => onInstall(remoteMatch)}
                         className="flex items-center space-x-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm transition-all shadow-xl shadow-emerald-900/20"
                       >
                         <RefreshCw className="w-5 h-5 animate-spin-slow" />
@@ -499,10 +522,15 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload }) => {
             <CloudDownload className="w-6 h-6 text-ps-blue" />
             <span>Cloud Repository</span>
           </h3>
-          <button onClick={fetchRemote} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-ps-blue">
+          <button onClick={() => fetchRemote(true)} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-ps-blue">
             <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
           </button>
         </div>
+        {lastUpdate > 0 && (
+          <p className="px-2 text-xs uppercase tracking-widest text-zinc-500">
+            Last Sync: {new Date(lastUpdate * 1000).toLocaleString()}
+          </p>
+        )}
         
         {loading && remotePayloads.length === 0 ? (
           <div className="py-24 glass-panel rounded-ps-3xl border-white/5 flex flex-col items-center justify-center space-y-6">
@@ -516,7 +544,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload }) => {
                <p className="text-xl font-bold text-white uppercase tracking-tight">Repository Unavailable</p>
                <p className="text-zinc-500 mt-1">Check your internet connection and try again.</p>
              </div>
-             <button onClick={fetchRemote} className="px-8 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-xl font-bold uppercase text-xs transition-all">Retry Connection</button>
+             <button onClick={() => fetchRemote(true)} className="px-8 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-xl font-bold uppercase text-xs transition-all">Retry Connection</button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
@@ -536,7 +564,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload }) => {
                   </div>
 
                   <button
-                    onClick={() => onInstall(p, p.installedFilename)}
+                    onClick={() => onInstall(p)}
                     className={cn(
                       "flex items-center justify-center space-x-4 px-8 py-5 rounded-2xl font-bold text-xl transition-all shadow-2xl shrink-0 transform active:scale-95",
                       p.isUpdate ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20" : "bg-ps-blue hover:bg-ps-blue/80 text-white shadow-ps-blue/20"
@@ -1123,27 +1151,29 @@ function App() {
     setTimeout(() => setDownloadModal({ show: false }), 800)
   }
 
-  const handleInstall = async (p, oldFilename = null) => {
+  const handleInstall = async (p) => {
     setDownloadModal({ show: true, name: p.filename, progress: 10 })
     try {
-      const resp = await fetch(p.url)
-      setDownloadModal(prev => ({ ...prev, progress: 40 }))
-      const blob = await resp.blob()
+      const elfRes = await fetch(p.url)
+      if (!elfRes.ok) throw new Error('Failed to fetch payload from source')
+      setDownloadModal(prev => ({ ...prev, progress: 50 }))
+
+      const buffer = await elfRes.arrayBuffer()
       setDownloadModal(prev => ({ ...prev, progress: 70 }))
 
-      const uploadResp = await fetch(`/manage:upload?filename=${encodeURIComponent(p.filename)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: blob
-      })
+      const pushRes = await fetch(
+        `/repository_install_push?filename=${encodeURIComponent(p.filename)}`,
+        { method: 'POST', body: buffer }
+      )
+      setDownloadModal(prev => ({ ...prev, progress: 90 }))
 
-      if (uploadResp.ok) {
+      const data = await pushRes.json().catch(() => null)
+      if (pushRes.ok && data?.ok) {
         setDownloadModal(prev => ({ ...prev, progress: 100 }))
-        if (oldFilename) await fetch(`/manage:delete?filename=${encodeURIComponent(oldFilename)}`)
         addToast(`${p.filename} installed`)
         refreshPayloads()
-      } else throw new Error()
-    } catch (e) { addToast("Installation failed", "error") }
+      } else throw new Error(data?.message || 'Install failed')
+    } catch (e) { addToast(e.message || 'Installation failed', 'error') }
     setTimeout(() => setDownloadModal({ show: false }), 800)
   }
 
@@ -1174,6 +1204,13 @@ function App() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (view === 'autoload' || view === 'storage') {
+      refreshConfig()
+      refreshPayloads()
+    }
+  }, [view])
   useEffect(() => {
     let statusTimeout
     const poll = async () => {
