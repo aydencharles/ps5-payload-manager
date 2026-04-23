@@ -43,7 +43,16 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
       if (!Array.isArray(data?.payloads)) throw new Error()
       setRemotePayloads(data.payloads)
       setRepoUrl(data.repo_url || '')
-      setLastUpdate(Number(data.last_update || 0))
+      const lastUpd = Number(data.last_update || 0)
+      setLastUpdate(lastUpd)
+
+      // Auto-update if older than 24h
+      if (!force) {
+        const now = Math.floor(Date.now() / 1000)
+        if (now - lastUpd > 24 * 60 * 60) {
+          return fetchRemote(true)
+        }
+      }
     } catch (e) {
       setError(true)
     } finally {
