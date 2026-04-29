@@ -14,7 +14,7 @@ import {
 import './App.css'
 
 // Utilities
-import { cn, isPS5 } from './utils/helpers'
+import { cn, isPS5, isSystemPayload } from './utils/helpers'
 
 // UI Components
 import Toast from './components/ui/Toast'
@@ -421,7 +421,7 @@ function App() {
                     <button onClick={() => { setStorageScrollTarget('cloud-repository'); setView('storage'); }} className="px-8 py-3 bg-ps-blue text-white rounded-xl font-bold tracking-tight shadow-xl shadow-ps-blue/20">Open Repository</button>
                   </div>
                 ) : (
-                  payloads.map((p, i) => (
+                  payloads.filter(p => !isSystemPayload(p)).map((p, i) => (
                     <PayloadButton
                       key={p}
                       path={p}

@@ -1363,3 +1363,101 @@ static int is_allowed_usb_path(const char *path) {
         free(items);
         return 0;
     }
+
+    int get_elf_pldmgr_version(const char *path, char *out_version, size_t out_size) {
+        FILE *f = fopen(path, "rb");
+        if (!f) return -1;
+        
+        char sig[16];
+        sig[0] = 'P'; sig[1] = 'L'; sig[2] = 'D'; sig[3] = 'M'; sig[4] = 'G'; 
+        sig[5] = 'R'; sig[6] = '_'; sig[7] = 'V'; sig[8] = 'E'; sig[9] = 'R'; sig[10] = ':'; sig[11] = '\0';
+        size_t sig_len = 11;
+        
+        char buffer[8192];
+        size_t bytes_read;
+        int match_idx = 0;
+        
+        while ((bytes_read = fread(buffer, 1, sizeof(buffer), f)) > 0) {
+            for (size_t i = 0; i < bytes_read; i++) {
+                if (buffer[i] == sig[match_idx]) {
+                    match_idx++;
+                    if (match_idx == sig_len) {
+                        size_t v_idx = 0;
+                        i++;
+                        while (i < bytes_read && buffer[i] != '\0' && v_idx < out_size - 1) {
+                            out_version[v_idx++] = buffer[i++];
+                        }
+                        if (i < bytes_read && buffer[i] == '\0') {
+                            if (v_idx > 0) {
+                                out_version[v_idx] = '\0';
+                                fclose(f);
+                                return 0;
+                            } else {
+                                match_idx = 0;
+                                continue;
+                            }
+                        } else {
+                            while (v_idx < out_size - 1) {
+                                int c = fgetc(f);
+                                if (c == EOF || c == '\0') break;
+                                out_version[v_idx++] = (char)c;
+                            }
+                            out_version[v_idx] = '\0';
+                            if (v_idx > 0) {
+                                fclose(f);
+                                return 0;
+                            } else {
+                                match_idx = 0;
+                                continue;
+                            }
+                        }
+                    }
+                } else {
+                    match_idx = 0;
+                    if (buffer[i] == sig[0]) match_idx = 1;
+                }
+            }
+        }
+        fclose(f);
+        return -1;
+    }
+
+    static int check_self_update_recursive(const char *dir_path, int depth, int max_depth, char *out_path, size_t out_size) {
+        DIR *dir;
+        struct dirent *entry;
+        if (depth > max_depth) return -1;
+        dir = opendir(dir_path);
+        if (!dir) return -1;
+
+        while ((entry = readdir(dir)) != NULL) {
+            char full_path[512];
+            struct stat st;
+            if (entry->d_name[0] == '.') continue;
+            snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+            if (stat(full_path, &st) != 0) continue;
+
+            if (S_ISDIR(st.st_mode)) {
+                if (check_self_update_recursive(full_path, depth + 1, max_depth, out_path, out_size) == 0) {
+                    closedir(dir);
+                    return 0;
+                }
+            } else if (S_ISREG(st.st_mode) && is_supported_extension(entry->d_name)) {
+                if (strstr(entry->d_name, "payload-manager") || strstr(entry->d_name, "pldmgr")) {
+                    char version[64];
+                    if (get_elf_pldmgr_version(full_path, version, sizeof(version)) == 0) {
+                        if (strcmp(version, MENU_VERSION) != 0) {
+                            strncpy(out_path, full_path, out_size);
+                            closedir(dir);
+                            return 0;
+                        }
+                    }
+                }
+            }
+        }
+        closedir(dir);
+        return -1;
+    }
+
+    int payload_mgr_check_self_update(char *out_path, size_t out_size) {
+        return check_self_update_recursive(PAYLOADS_STORAGE_DIR, 0, 2, out_path, out_size);
+    }

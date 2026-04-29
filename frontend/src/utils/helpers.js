@@ -31,3 +31,7 @@ export const parsePayloadName = (path) => {
     isDelay: false
   };
 };
+
+export const isSystemPayload = (filename) => {
+  return filename && (filename.includes('pldmgr.elf') || filename.includes('payload-manager'));
+};

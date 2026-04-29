@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { RefreshCw, ArrowLeft, ArrowRight, Activity, Zap, ChevronUp, ChevronDown, Trash2, CheckCircle2 } from 'lucide-react'
-import { cn, isPS5 } from '../../utils/helpers'
+import { cn, isPS5, isSystemPayload } from '../../utils/helpers'
 import PayloadName from '../ui/PayloadName'
 import Modal from '../ui/Modal'
 
@@ -56,7 +56,7 @@ const AutoloadView = ({ payloads, config, onSaveConfig, onToast, onRedirect }) =
     return () => clearTimeout(timer)
   }, [autoloadList, enabled, isInitialized, onSaveConfig])
 
-  const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb')).map(p => p.split('/').pop())
+  const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb') && !isSystemPayload(p)).map(p => p.split('/').pop())
   const availablePayloads = internalPayloads.filter(p => !autoloadList.includes(p))
 
   const handleToggle = (val) => {

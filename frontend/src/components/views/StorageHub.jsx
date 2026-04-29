@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { CloudDownload, Upload, Package, Database, RefreshCw, Trash2, Loader2, AlertTriangle, HardDrive, Usb } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { cn, isPS5 } from '../../utils/helpers'
+import { cn, isPS5, isSystemPayload } from '../../utils/helpers'
 import PayloadName from '../ui/PayloadName'
 
 const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, ip, scrollTarget, onClearScrollTarget }) => {
@@ -59,7 +59,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
   }, [scrollTarget]);
 
   const localFilenames = useMemo(() => payloads.map(p => p.split('/').pop()), [payloads])
-  const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb'))
+  const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb') && !isSystemPayload(p))
 
   const getBaseName = (filename) => {
     if (!filename) return '';

@@ -1114,11 +1114,21 @@ static enum MHD_Result on_request(void *cls, struct MHD_Connection *conn,
 extern int sceNetCtlInit();
 extern int sceUserServiceInitialize(void *);
 
+__attribute__((used)) volatile const char pldmgr_version_sig[] = "PLDMGR_VER:" MENU_VERSION;
+
 int main(int argc, char *argv[]) {
   struct MHD_Daemon *daemon;
   unsigned short port = DEFAULT_PORT;
   pldmgr_log("[PLDMGR] Starting Native Core v%s on port %d...\n", MENU_VERSION,
          port);
+
+  /* Check for Self-Update */
+  char new_payload_path[512];
+  if (payload_mgr_check_self_update(new_payload_path, sizeof(new_payload_path)) == 0) {
+    pldmgr_log("[PLDMGR] Found updated payload manager at %s. Launching...\n", new_payload_path);
+    ps5_launch_elf(new_payload_path);
+    return 0; /* Exit current process, new one will take over */
+  }
 
   /* Initialize PS5 System Services */
   pldmgr_log("[PLDMGR] Initializing system services...\n");
