@@ -33,7 +33,7 @@
 
 
 
-#define MENU_VERSION "1.0.0"
+#define MENU_VERSION "0.0.1"
 #define AUTOLOAD_CONFIG_PATH "/data/pldmgr/autoload.txt"
 #define PLDMGR_CONFIG_PATH "/data/pldmgr/pldmgr_config.txt"
 #define REPOSITORY_CACHE_PATH "/data/pldmgr/repository_cache.json"
