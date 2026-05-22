@@ -53,6 +53,7 @@ function App() {
   const [moveFromUsbPath, setMoveFromUsbPath] = useState(null)
   const [storageScrollTarget, setStorageScrollTarget] = useState(null)
   const [showLogs, setShowLogs] = useState(false)
+  const [toastId, setToastId] = useState(0)
 
   useEffect(() => {
     if (!showLogs) return
@@ -68,7 +69,8 @@ function App() {
 
 
   const addToast = (message, type = 'success') => {
-    const id = Date.now()
+    const id = toastId + 1
+    setToastId(id)
     setToasts(prev => [...prev, { id, message, type }])
   }
 
@@ -284,9 +286,6 @@ function App() {
     }
     init()
   }, [refreshConfig, refreshPayloads])
-
-
-
 
   useEffect(() => {
     if (view === 'autoload' || view === 'storage') {
