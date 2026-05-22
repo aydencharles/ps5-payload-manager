@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import { CloudDownload, Upload, Package, Database, RefreshCw, Trash2, Loader2, AlertTriangle, HardDrive, Usb } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { cn, isPS5, isSystemPayload } from '../../utils/helpers'
+import { cn, isPS5 } from '../../utils/helpers'
 import PayloadName from '../ui/PayloadName'
 
 const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, config, ip, scrollTarget, onClearScrollTarget }) => {
+  const { t, i18n } = useTranslation()
   const [remotePayloads, setRemotePayloads] = useState([])
   const [repoUrl, setRepoUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const [lastUpdate, setLastUpdate] = useState(0)
 
-  const fetchRemote = async (force = false) => {
+  const fetchRemote = useCallback(async function fetchRemoteInner(force = false) {
     setLoading(true)
     setError(false)
     try {
@@ -28,22 +30,23 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
 
       // Auto-update if older than 24h
       if (!force) {
-        const now = Math.floor(Date.now() / 1000)
-        if (now - lastUpd > 24 * 60 * 60) {
-          await fetchRemote(true)
-          return
-        }
+        window.setTimeout(() => {
+          const now = Math.floor(Date.now() / 1000)
+          if (now - lastUpd > 24 * 60 * 60) {
+            fetchRemoteInner(true)
+          }
+        }, 0)
       }
-    } catch (e) {
+    } catch {
       setError(true)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchRemote()
-  }, [])
+  }, [fetchRemote])
 
   useEffect(() => {
     if (scrollTarget) {
@@ -56,7 +59,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [scrollTarget]);
+  }, [onClearScrollTarget, scrollTarget]);
 
   const localFilenames = useMemo(() => payloads.map(p => p.split('/').pop()), [payloads])
   const internalPayloads = payloads.filter(p => !p.includes('/mnt/usb'))
@@ -91,13 +94,13 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
     <div className="space-y-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
         <h2 className="text-4xl font-extrabold text-white tracking-tight">
-          Payload <span className="text-ps-blue">Management</span>
+          {t('storage.titleLead')} <span className="text-ps-blue">{t('storage.titleAccent')}</span>
         </h2>
 
         {!isPS5 && (
           <label className="inline-flex items-center space-x-4 px-10 py-5 bg-ps-blue hover:bg-ps-blue/80 text-white rounded-[1.25rem] font-bold tracking-tight text-xl cursor-pointer transition-all shrink-0 transform active:scale-95">
             <Upload className="w-7 h-7" />
-            <span>Upload ELF Payload</span>
+            <span>{t('storage.uploadPayload')}</span>
             <input type="file" className="hidden" onChange={onUpload} accept=".elf,.bin,.lua" />
           </label>
         )}
@@ -108,10 +111,10 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
         <div className="flex items-center justify-between px-2">
           <h3 className="label-caps !text-white flex items-center space-x-4 text-lg">
             <Database className="w-6 h-6 text-ps-blue" />
-            <span>Installed Payloads</span>
+            <span>{t('storage.installedTitle')}</span>
           </h3>
           <span className="bg-white/5 px-4 py-1 rounded-full text-zinc-500 font-bold text-xs">
-            {internalPayloads.length} Files
+            {t('storage.filesCount', { count: internalPayloads.length })}
           </span>
         </div>
 
@@ -119,10 +122,10 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
           {internalPayloads.length === 0 ? (
             <div className="col-span-full py-20 border-2 border-dashed border-white/5 rounded-ps-3xl flex flex-col items-center justify-center space-y-4 bg-white/[0.01]">
               <Package className="w-16 h-16 text-white/5" />
-              <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">Library Empty</p>
+              <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">{t('storage.libraryEmpty')}</p>
             </div>
           ) : (
-            internalPayloads.map((path, i) => {
+            internalPayloads.map((path) => {
               const fileName = path.split('/').pop()
               const remoteMatch = remoteStatus.find(rp => rp.filename === fileName || rp.installedFilename === fileName)
               return (
@@ -145,13 +148,13 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
                         className="flex items-center space-x-2 md:space-x-3 px-4 md:px-6 py-2 md:py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs md:text-sm transition-all"
                       >
                         <RefreshCw className="w-4 h-4 md:w-5 md:h-5" />
-                        <span>Update</span>
+                        <span>{t('storage.update')}</span>
                       </button>
                     )}
                     <button
                       onClick={() => onDelete(fileName)}
                       className="p-3 md:p-4 rounded-xl bg-red-950/20 text-red-500 border border-red-500/10 hover:bg-red-500 hover:text-white transition-all"
-                      title="Remove Payload"
+                      title={t('storage.removePayload')}
                     >
                       <Trash2 className="w-5 h-5 md:w-6 md:h-6" />
                     </button>
@@ -168,7 +171,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
         <div className="flex items-center justify-between px-2">
           <h3 className="label-caps !text-white flex items-center space-x-4 text-lg" >
             <CloudDownload className="w-6 h-6 text-ps-blue" />
-            <span>Cloud Repository</span>
+            <span>{t('storage.cloudRepository')}</span>
           </h3>
           <button onClick={() => fetchRemote(true)} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-ps-blue">
             <RefreshCw className={cn("w-5 h-5", loading && "animate-spin")} />
@@ -176,32 +179,34 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
         </div>
         {lastUpdate > 0 && (
           <p className="px-2 text-xs uppercase tracking-widest text-zinc-500">
-            Last Sync: {new Date(lastUpdate * 1000).toLocaleString()}
+            {t('storage.lastSync', {
+              value: new Date(lastUpdate * 1000).toLocaleString(i18n.resolvedLanguage),
+            })}
           </p>
         )}
 
         {loading && remotePayloads.length === 0 ? (
           <div className="py-24 glass-panel rounded-ps-3xl border-white/5 flex flex-col items-center justify-center space-y-6">
             <Loader2 className="w-16 h-16 text-ps-blue animate-spin" />
-            <p className="label-caps">Syncing with Repository...</p>
+            <p className="label-caps">{t('storage.syncingRepository')}</p>
           </div>
         ) : error ? (
           <div className="py-20 glass-card rounded-ps-3xl border-red-500/20 flex flex-col items-center justify-center space-y-6 bg-red-950/5">
             <AlertTriangle className="w-16 h-16 text-red-500 opacity-50" />
             <div className="text-center">
-              <p className="text-xl font-bold text-white uppercase tracking-tight">Repository Unavailable</p>
-              <p className="text-zinc-500 mt-1">Check your internet connection and try again.</p>
+              <p className="text-xl font-bold text-white uppercase tracking-tight">{t('storage.repositoryUnavailable')}</p>
+              <p className="text-zinc-500 mt-1">{t('storage.repositoryUnavailableHint')}</p>
             </div>
-            <button onClick={() => fetchRemote(true)} className="px-8 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-xl font-bold uppercase text-xs transition-all">Retry Connection</button>
+            <button onClick={() => fetchRemote(true)} className="px-8 py-3 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-xl font-bold uppercase text-xs transition-all">{t('storage.retryConnection')}</button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {cloudItems.length === 0 ? (
               <div className="py-20 border-2 border-dashed border-white/5 rounded-ps-3xl flex flex-col items-center justify-center space-y-4 bg-white/[0.01]">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">Repository Up to Date</p>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">{t('storage.repositoryUpToDate')}</p>
               </div>
             ) : (
-              cloudItems.map((p, i) => (
+              cloudItems.map((p) => (
                 <div key={p.filename} className={cn(
                   "glass-card p-6 md:p-8 rounded-ps-3xl flex flex-col md:flex-row justify-between gap-4 md:gap-8 border-white/10 hover:border-ps-blue/20 transition-all bg-white/[0.01]",
                   isPS5 ? "flex-row items-center" : "items-start md:items-center"
@@ -222,7 +227,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
                     )}
                   >
                     <CloudDownload className="w-5 h-5 md:w-7 md:h-7" />
-                    <span>{p.isUpdate ? "Update" : "Install"}</span>
+                    <span>{p.isUpdate ? t('storage.update') : t('storage.install')}</span>
                   </button>
                 </div>
               ))
@@ -236,10 +241,10 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
         <div className="flex items-center justify-between px-2">
           <h3 className="label-caps !text-ps-blue flex items-center space-x-4 text-lg">
             <HardDrive className="w-6 h-6" />
-            <span>USB Storage</span>
+            <span>{t('storage.usbStorage')}</span>
           </h3>
           <span className="bg-ps-blue/5 px-4 py-1 rounded-full text-ps-blue font-bold text-xs border border-ps-blue/20">
-            {payloads.filter(p => p.includes('/mnt/usb')).length} Files
+            {t('storage.filesCount', { count: payloads.filter(p => p.includes('/mnt/usb')).length })}
           </span>
         </div>
 
@@ -255,18 +260,16 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
                 )}
               </div>
               <div className="text-center space-y-2">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">No USB Payloads Found</p>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">{t('storage.noUsbPayloads')}</p>
                 {!config.SCAN_USB_PAYLOADS && (
                   <p className="text-xs text-zinc-600 max-w-xs mx-auto leading-relaxed">
-                    Extended USB scanning is currently disabled. <br /> 
-                    Enable <strong>"Scan USB Payloads"</strong> in settings to search for payloads on connected drives.
+                    <Trans i18nKey="storage.extendedUsbScanningHint" components={{ br: <br />, strong: <strong /> }} />
                   </p>
                 )}
               </div>
             </div>
           ) : (
-            payloads.filter(p => p.includes('/mnt/usb')).map((path, i) => {
-              const fileName = path.split('/').pop()
+            payloads.filter(p => p.includes('/mnt/usb')).map((path) => {
               return (
                 <div key={path} className={cn(
                   "group flex justify-between p-4 md:p-6 glass-card rounded-ps-2xl border-white/10 hover:border-ps-blue/30 gap-4",
@@ -287,7 +290,7 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
                       className="flex items-center space-x-2 md:space-x-3 px-4 md:px-6 py-3 md:py-4 bg-white/5 hover:bg-ps-blue text-white rounded-xl font-bold text-xs md:text-sm transition-all border border-white/10 hover:border-ps-blue group/btn"
                     >
                       <Database className="w-4 h-4 md:w-5 md:h-5 text-ps-blue group-hover/btn:text-white transition-colors" />
-                      <span>Move to Internal</span>
+                      <span>{t('storage.moveToInternal')}</span>
                     </button>
                   </div>
                 </div>
@@ -312,10 +315,10 @@ const StorageHub = ({ payloads, onInstall, onDelete, onUpload, onImportFromUsb, 
           <div className="flex-1 space-y-3 md:space-y-4 text-center md:text-left">
             <h4 className="label-caps !text-white !opacity-100 text-xl md:text-2xl tracking-widest flex items-center justify-center md:justify-start space-x-3 md:space-x-4">
               <div className="w-1.5 h-6 md:w-2 md:h-8 bg-ps-blue rounded-full" />
-              <span>Remote Management</span>
+              <span>{t('storage.remoteManagement')}</span>
             </h4>
             <p className="text-lg md:text-xl text-zinc-400 leading-relaxed italic font-medium max-w-3xl">
-              Access this dashboard from your computer or phone to manage and upload payloads directly from your local network.
+              {t('storage.remoteManagementHint')}
             </p>
           </div>
         </div>
