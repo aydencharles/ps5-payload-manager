@@ -1,17 +1,22 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Zap, Usb } from 'lucide-react'
 import { cn, parsePayloadName } from '../../utils/helpers'
 
 const PayloadName = ({ path, className, versionClassName, stacked = false, hideIcon = false }) => {
-  const { displayName, version, isDelay } = parsePayloadName(path);
+  const { t } = useTranslation()
+  const { displayName, delaySeconds, version, isDelay } = parsePayloadName(path);
   const isUsb = path?.startsWith('/mnt/usb');
+  const resolvedName = isDelay
+    ? t('payload.delay', { seconds: delaySeconds })
+    : displayName
 
   return (
     <div className={cn("flex min-w-0 flex-1", stacked ? "flex-col items-start" : "items-center space-x-3", className)}>
       <div className="flex items-center space-x-2 min-w-0">
         {isDelay && !hideIcon && <Zap className="w-4 h-4 text-ps-blue shrink-0" />}
         {isUsb && !hideIcon && <Usb className="w-5 h-5 text-ps-blue shrink-0 mr-1" />}
-        <span className="font-bold truncate shrink leading-tight">{displayName}</span>
+        <span className="font-bold truncate shrink leading-tight">{resolvedName}</span>
       </div>
       {version && (
         <span className={cn(
