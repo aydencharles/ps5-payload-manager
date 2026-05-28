@@ -831,7 +831,7 @@ static int is_allowed_usb_path(const char *path) {
         return -1;
     }
 
-    static int read_config_bool(const char *key, int default_val) {
+    int pldmgr_read_config_bool(const char *key, int default_val) {
         FILE *f = fopen(PLDMGR_CONFIG_PATH, "r");
         if (!f) return default_val;
         char line[256];
@@ -866,7 +866,7 @@ static int is_allowed_usb_path(const char *path) {
             scan_payloads_recursive(scan_dirs[i], 0, 5, &jb);
         }
 
-        if (read_config_bool("SCAN_USB_PAYLOADS", 0)) {
+        if (pldmgr_read_config_bool("SCAN_USB_PAYLOADS", 0)) {
             for (int i = 0; i < 8; i++) {
                 char usb_root[32];
                 snprintf(usb_root, sizeof(usb_root), "/mnt/usb%d", i);

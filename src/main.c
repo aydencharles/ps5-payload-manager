@@ -240,6 +240,16 @@ static int is_allowed_payload_path(const char *path) {
       return 1;
     }
   }
+
+  /* Allow USB root payloads if SCAN_USB_PAYLOADS is enabled in config */
+  if (strncmp(path, "/mnt/usb", 8) == 0 &&
+      path[8] >= '0' && path[8] <= '7' &&
+      path[9] == '/') {
+    if (pldmgr_read_config_bool("SCAN_USB_PAYLOADS", 0)) {
+      return 1;
+    }
+  }
+
   return 0;
 }
 

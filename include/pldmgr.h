@@ -42,6 +42,7 @@
 /* Logging */
 void pldmgr_log(const char *fmt, ...);
 int pldmgr_server_is_active();
+int pldmgr_read_config_bool(const char *key, int default_val);
 
 #include "autoload.h"
 #include "notification.h"
