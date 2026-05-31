@@ -10,7 +10,6 @@ if [ -z "$VERSION" ]; then
 fi
 
 OUTPUT_ELF="pldmgr_v${VERSION}.elf"
-IMAGE_NAME="ps5-payload-sdk-pldmgr"
 
 echo "--- Building Payload Manager v$VERSION ---"
 
@@ -23,20 +22,9 @@ if [ $? -ne 0 ]; then
 fi
 echo "      Frontend build successful."
 
-# 2b. Build/verify the docker image
-if [[ "$(docker images -q $IMAGE_NAME 2> /dev/null)" == "" ]]; then
-    echo "      Docker image $IMAGE_NAME not found. Building... (this may take a few minutes)"
-    docker build -t $IMAGE_NAME -f Dockerfile.sdk .
-    if [ $? -ne 0 ]; then
-        echo "      !!! Docker image build FAILED!"
-        exit 1
-    fi
-    echo "      Docker image built successfully."
-fi
-
-# 3. Build native ELF via Docker
-echo "[2/3] Building native ELF via Docker..."
-docker run --rm -v "$(pwd)":/src -w /src $IMAGE_NAME make clean all > /dev/null 2>&1
+# 3. Build native ELF with the locally installed SDK
+echo "[2/3] Building native ELF with local SDK..."
+make clean all > /dev/null 2>&1
 
 if [ $? -ne 0 ]; then
     echo "      !!! ELF build FAILED!"

@@ -22,9 +22,9 @@ if [ $? -ne 0 ]; then
 fi
 echo "      Frontend build successful."
 
-# 2. Build the native ELF via Docker
-echo "[2/3] Building native ELF via Docker..."
-docker run --rm -v "$(pwd)":/src -w /src ps5-payload-sdk-pldmgr make clean all > /dev/null 2>&1
+# 2. Build the native ELF with the locally installed SDK
+echo "[2/3] Building native ELF with local SDK..."
+make clean all > /dev/null 2>&1
 
 if [ $? -ne 0 ]; then
     echo "      !!! ELF build FAILED! Check Makefile or source errors."
