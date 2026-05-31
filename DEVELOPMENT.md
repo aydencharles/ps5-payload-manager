@@ -4,29 +4,34 @@ This document describes how to build and deploy the **Payload Manager**.
 
 ## How to Build
 
-### 1. Build the Frontend
+### 1. Configure the SDK
+Set `PS5_PAYLOAD_SDK` to your installed [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk):
+```bash
+export PS5_PAYLOAD_SDK=/path/to/ps5-payload-sdk
+```
+
+Install the third-party dependencies into the SDK once:
+```bash
+./build_deps.sh
+```
+
+### 2. Build the Frontend
 You must build the React UI first. This converts the JSX into the `dist/index.html` file that gets embedded.
 ```bash
 make frontend-build
 ```
 
-### 2. Build the SDK Docker Image
-If you haven't already, build the SDK environment:
-```bash
-docker build -t ps5-payload-sdk -f Dockerfile.sdk .
-```
-
 ### 3. Build the ELF
-Use the Docker container to compile the Payload Manager. It is recommended to run `make clean` if you updated the frontend.
+Use the locally installed SDK to compile the Payload Manager. It is recommended to run `make clean` if you updated the frontend.
 ```bash
-docker run --rm -v $(pwd):/src -w /src ps5-payload-sdk make clean all
+make clean all
 ```
 
 The resulting `pldmgr.elf` will be created in the root directory.
 
 ## Automated Deploy
 
-For a quick build & deploy cycle, use the `deploy.sh` script. It will automatically call `/shutdown` on the PS5, run the docker build, and send the new ELF via `socat`.
+For a quick build & deploy cycle, use the `deploy.sh` script. It builds with the locally installed SDK and sends the new ELF via `socat`.
 
 ```bash
 ./deploy.sh [PS5_IP]
