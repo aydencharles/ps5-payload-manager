@@ -22,6 +22,9 @@ ASSET_HEADER  := include/assets_index_html.h
 CA_HEADER     := include/assets_cacert_pem.h
 MANIFEST_HEADER := include/assets_cache_appcache.h
 FRONTEND_MANIFEST := frontend/dist/cache.appcache
+FAVICON_SVG_HEADER := include/assets_favicon_svg.h
+ICON_PNG_HEADER := include/assets_icon_png.h
+
 
 
 
@@ -42,9 +45,13 @@ frontend-build:
 	DATE=$$(date -u +"%Y-%m-%d %H:%M:%S UTC"); \
 	TITLE="Payload Manager v$$VERSION by PLK ($$COMMIT, built at $$DATE)"; \
 	echo "Updating title in index.html to: $$TITLE"; \
-	sed -i '' "s/\[\[TITLE_PLACEHOLDER\]\]/$$TITLE/g" frontend/dist/index.html; \
+	TMP=$$(mktemp "$${TMPDIR:-/tmp}/pldmgr.XXXXXX"); \
+	sed "s|\[\[TITLE_PLACEHOLDER\]\]|$$TITLE|g" frontend/dist/index.html > $$TMP; \
+	mv $$TMP frontend/dist/index.html; \
 	echo "Updating build date in cache.appcache to: $$DATE"; \
-	sed -i '' "s/\[\[BUILD_DATE\]\]/$$DATE/g" frontend/dist/cache.appcache
+	TMP=$$(mktemp "$${TMPDIR:-/tmp}/pldmgr.XXXXXX"); \
+	sed "s|\[\[BUILD_DATE\]\]|$$DATE|g" frontend/dist/cache.appcache > $$TMP; \
+	mv $$TMP frontend/dist/cache.appcache
 
 
 
@@ -55,6 +62,14 @@ $(ASSET_HEADER): $(FRONTEND_DIST)
 $(MANIFEST_HEADER): $(FRONTEND_DIST)
 	@echo "Generating Manifest asset header..."
 	$(PYTHON) tools/gen_assets.py $(FRONTEND_MANIFEST) $(MANIFEST_HEADER) cache_appcache
+
+$(FAVICON_SVG_HEADER): $(FRONTEND_DIST)
+	@echo "Generating Favicon SVG asset header..."
+	$(PYTHON) tools/gen_assets.py frontend/dist/favicon.svg $(FAVICON_SVG_HEADER) favicon_svg
+
+$(ICON_PNG_HEADER): $(FRONTEND_DIST)
+	@echo "Generating Icon PNG asset header..."
+	$(PYTHON) tools/gen_assets.py frontend/dist/icon.png $(ICON_PNG_HEADER) icon_png
 
 $(CA_HEADER):
 	@echo "Downloading CA bundle..."
@@ -67,14 +82,14 @@ $(FRONTEND_DIST):
 	@echo "Please run 'make frontend-build' locally on your host machine first."
 	@exit 1
 
-$(ELF): $(ASSET_HEADER) $(MANIFEST_HEADER) $(CA_HEADER) $(SRCS)
+$(ELF): $(ASSET_HEADER) $(MANIFEST_HEADER) $(CA_HEADER) $(FAVICON_SVG_HEADER) $(ICON_PNG_HEADER) $(SRCS)
 	@echo "Building $(ELF)..."
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(ELF) $(SRCS) $(LIBS)
 	@echo "Stripping $(ELF)..."
 	$(STRIP) $(ELF)
 
 clean:
-	rm -f $(ELF) $(ASSET_HEADER) $(MANIFEST_HEADER) $(CA_HEADER) src/*.o
+	rm -f $(ELF) $(ASSET_HEADER) $(MANIFEST_HEADER) $(CA_HEADER) $(FAVICON_SVG_HEADER) $(ICON_PNG_HEADER) src/*.o
 
 
 
