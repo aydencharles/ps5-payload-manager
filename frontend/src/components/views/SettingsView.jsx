@@ -8,7 +8,7 @@ const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, se
   const autoloadDelay = config.AUTOLOAD_DELAY || 5
 
   const SettingRow = ({ title, description, children, icon: Icon }) => (
-    <div className="flex items-center justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 hover:border-ps-blue/30 transition-all group">
+    <div className="flex items-center justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 hover:border-ps-blue/30 transition-all group h-full">
       <div className="flex items-center space-x-6">
         {Icon && (
           <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-ps-blue/10 transition-colors">
@@ -27,7 +27,7 @@ const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, se
   )
 
   return (
-    <div className="max-w-5xl space-y-16 pb-20">
+    <div className="max-w-5xl mx-auto space-y-16 pb-20">
       <div className="space-y-4">
         <h2 className="text-4xl font-extrabold text-white tracking-tight">
           Settings
@@ -36,12 +36,7 @@ const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, se
 
       {/* Startup Settings */}
       <section className="space-y-8">
-        <h3 className="label-caps !text-ps-blue !opacity-100 flex items-center space-x-4 text-xl tracking-[0.2em]">
-          <Zap className="w-6 h-6" />
-          <span>Startup & Automation</span>
-        </h3>
-
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <SettingRow
             title="Auto-open Browser"
             description="Automatically launch the browser when Payload Manager payload is executed."
@@ -114,7 +109,7 @@ const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, se
             </button>
           </SettingRow>
 
-          <div className="p-8 bg-white/[0.03] rounded-3xl border border-white/10 space-y-8">
+          <div className="flex flex-col justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 space-y-8 h-full">
             <div className="flex justify-between items-center">
               <div className="space-y-1">
                 <p className="font-bold text-white uppercase text-lg tracking-tight">Autoload Delay</p>
@@ -147,7 +142,7 @@ const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, se
       <section className="space-y-8">
         <h3 className="label-caps !text-ps-blue !opacity-100 flex items-center space-x-4 text-xl tracking-[0.2em]">
           <Terminal className="w-6 h-6" />
-          <span>System Diagnostics</span>
+          <span>Diagnostics</span>
         </h3>
 
         <button
@@ -160,7 +155,7 @@ const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, se
             </div>
             <div className="space-y-1">
               <p className="font-bold text-white uppercase text-lg tracking-tight">Open Log Viewer</p>
-              <p className="text-sm text-zinc-500 max-w-md">Access real-time debug output from the background daemon.</p>
+              <p className="text-sm text-zinc-500 max-w-md">Access real-time debug output from the Payload Manager daemon.</p>
             </div>
           </div>
           <ChevronRight className="w-8 h-8 text-zinc-700 group-hover:text-ps-blue group-hover:translate-x-2 transition-all" />
