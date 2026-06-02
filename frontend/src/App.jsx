@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
   Settings,
@@ -38,7 +38,23 @@ import LogViewer from './components/views/LogViewer'
 function App() {
   const { t } = useTranslation()
   const [view, setView] = useState('dashboard')
-  const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const mainRef = useRef(null)
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0
+    }
+    window.scrollTo(0, 0)
+  }, [view])
+
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    const saved = localStorage.getItem('sidebarExpanded')
+    return saved !== null ? JSON.parse(saved) : true
+  })
+
+  useEffect(() => {
+    localStorage.setItem('sidebarExpanded', JSON.stringify(sidebarExpanded))
+  }, [sidebarExpanded])
   const [autoloadStatus, setAutoloadStatus] = useState(null)
   const [logs, setLogs] = useState([])
   const [payloads, setPayloads] = useState([])
@@ -454,7 +470,7 @@ function App() {
         "flex flex-col relative",
         isPS5 ? "h-screen flex-1 min-h-0" : "md:h-screen md:flex-1 md:min-h-0"
       )}>
-        <main className={cn(
+        <main ref={mainRef} className={cn(
           "custom-scrollbar max-w-[1800px] mx-auto w-full flex flex-col",
           isPS5 ? "pt-16 px-16 pb-12 flex-1 overflow-y-auto" : "pt-6 px-6 pb-36 md:pt-16 md:px-16 md:pb-12 md:flex-1 md:overflow-y-auto"
         )}>
@@ -530,7 +546,10 @@ function App() {
               config={config}
               onSaveConfig={handleSaveConfig}
               onToast={addToast}
-              onRedirect={setView}
+              onRedirect={(v, target) => {
+                if (target) setStorageScrollTarget(target)
+                setView(v)
+              }}
             />
           )}
 
@@ -538,6 +557,10 @@ function App() {
             <SettingsView
               config={config}
               onSaveConfig={handleSaveConfig}
+              isPS5={isPS5}
+              logs={logs}
+              setLogs={setLogs}
+              showLogs={showLogs}
               setShowLogs={setShowLogs}
             />
           )}{view === 'donate' && <DonateView />}

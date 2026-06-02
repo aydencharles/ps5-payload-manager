@@ -5,7 +5,7 @@ import { cn } from '../../utils/helpers'
 import { setAppLanguage, supportedLocales } from '../../i18n'
 
 const SettingRow = ({ title, description, children, icon: Icon }) => (
-  <div className="flex items-center justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 hover:border-ps-blue/30 transition-all group">
+  <div className="flex items-center justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 hover:border-ps-blue/30 transition-all group h-full">
     <div className="flex items-center space-x-6">
       {Icon && (
         <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-ps-blue/10 transition-colors">
@@ -30,7 +30,7 @@ const SettingsView = ({ config, onSaveConfig, setShowLogs }) => {
   const autoloadDelay = config.AUTOLOAD_DELAY || 5
 
   return (
-    <div className="max-w-5xl space-y-16 pb-20">
+    <div className="max-w-5xl mx-auto space-y-16 pb-20">
       <div className="space-y-4">
         <h2 className="text-4xl font-extrabold text-white tracking-tight">
           {t('settings.title')}
@@ -39,12 +39,7 @@ const SettingsView = ({ config, onSaveConfig, setShowLogs }) => {
 
       {/* Startup Settings */}
       <section className="space-y-8">
-        <h3 className="label-caps !text-ps-blue !opacity-100 flex items-center space-x-4 text-xl tracking-[0.2em]">
-          <Zap className="w-6 h-6" />
-          <span>{t('settings.startupSection')}</span>
-        </h3>
-
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <SettingRow
             title={t('settings.autoOpenTitle')}
             description={t('settings.autoOpenDescription')}
@@ -121,7 +116,7 @@ const SettingsView = ({ config, onSaveConfig, setShowLogs }) => {
             </button>
           </SettingRow>
 
-          <div className="p-8 bg-white/[0.03] rounded-3xl border border-white/10 space-y-8">
+          <div className="flex flex-col justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 space-y-8 h-full">
             <div className="flex justify-between items-center">
               <div className="space-y-1">
                 <p className="font-bold text-white uppercase text-lg tracking-tight">{t('settings.autoloadDelayTitle')}</p>
@@ -150,6 +145,7 @@ const SettingsView = ({ config, onSaveConfig, setShowLogs }) => {
         </div>
       </section>
 
+      {/* Language Section */}
       <section className="space-y-8">
         <h3 className="label-caps !text-ps-blue !opacity-100 flex items-center space-x-4 text-xl tracking-[0.2em]">
           <Languages className="w-6 h-6" />
