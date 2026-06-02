@@ -4,30 +4,30 @@ import { Languages, Zap, Terminal, ChevronRight } from 'lucide-react'
 import { cn } from '../../utils/helpers'
 import { setAppLanguage, supportedLocales } from '../../i18n'
 
-const SettingsView = ({ config, onSaveConfig, isPS5, logs, setLogs, showLogs, setShowLogs }) => {
+const SettingRow = ({ title, description, children, icon: Icon }) => (
+  <div className="flex items-center justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 hover:border-ps-blue/30 transition-all group h-full">
+    <div className="flex items-center space-x-6">
+      {Icon && (
+        <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-ps-blue/10 transition-colors">
+          <Icon className="w-6 h-6 text-zinc-500 group-hover:text-ps-blue transition-colors" />
+        </div>
+      )}
+      <div className="space-y-1">
+        <p className="font-bold text-white uppercase text-lg tracking-tight">{title}</p>
+        <p className="text-sm text-zinc-500 max-w-md">{description}</p>
+      </div>
+    </div>
+    <div className="shrink-0 ml-8">
+      {children}
+    </div>
+  </div>
+)
+
+const SettingsView = ({ config, onSaveConfig, setShowLogs }) => {
   const { t, i18n } = useTranslation()
   const autoOpen = config.AUTO_BROWSER_OPEN !== false
   const autoInstall = config.AUTO_INSTALL_APP !== false
   const autoloadDelay = config.AUTOLOAD_DELAY || 5
-
-  const SettingRow = ({ title, description, children, icon: Icon }) => (
-    <div className="flex items-center justify-between p-8 bg-white/[0.03] rounded-3xl border border-white/10 hover:border-ps-blue/30 transition-all group h-full">
-      <div className="flex items-center space-x-6">
-        {Icon && (
-          <div className="p-4 bg-white/5 rounded-2xl group-hover:bg-ps-blue/10 transition-colors">
-            <Icon className="w-6 h-6 text-zinc-500 group-hover:text-ps-blue transition-colors" />
-          </div>
-        )}
-        <div className="space-y-1">
-          <p className="font-bold text-white uppercase text-lg tracking-tight">{title}</p>
-          <p className="text-sm text-zinc-500 max-w-md">{description}</p>
-        </div>
-      </div>
-      <div className="shrink-0 ml-8">
-        {children}
-      </div>
-    </div>
-  )
 
   return (
     <div className="max-w-5xl mx-auto space-y-16 pb-20">
