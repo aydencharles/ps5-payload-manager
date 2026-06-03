@@ -265,7 +265,9 @@ const StorageHub = ({ payloads, payloadMeta, onInstall, onDelete, onUpload, onIm
                     <div className="border-t border-white/5 divide-y divide-white/5">
                       {availablePayloads.length === 0 ? (
                         <div className="py-12 flex flex-col items-center justify-center space-y-3 text-zinc-600">
-                          <p className="text-sm font-bold uppercase tracking-widest italic">All payloads installed</p>
+                          <p className="text-sm font-bold uppercase tracking-widest italic">
+                            {src.payloads.length === 0 ? "Source is empty" : "All payloads installed"}
+                          </p>
                         </div>
                       ) : (
                         availablePayloads.map(p => (
@@ -314,9 +316,13 @@ const StorageHub = ({ payloads, payloadMeta, onInstall, onDelete, onUpload, onIm
             )}
             {(() => {
               const cloudItems = remotePayloads.filter(p => !p.isInstalled || p.isUpdate)
-              return cloudItems.length === 0 ? (
+              return remotePayloads.length === 0 ? (
                 <div className="py-20 border-2 border-dashed border-white/5 rounded-ps-3xl flex flex-col items-center justify-center space-y-4 bg-white/[0.01]">
-                  <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">Repository Up to Date</p>
+                  <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">Repository is empty</p>
+                </div>
+              ) : cloudItems.length === 0 ? (
+                <div className="py-20 border-2 border-dashed border-white/5 rounded-ps-3xl flex flex-col items-center justify-center space-y-4 bg-white/[0.01]">
+                  <p className="text-zinc-500 font-bold uppercase tracking-widest text-sm italic">All payloads installed</p>
                 </div>
               ) : (
                 cloudItems.map(p => (
