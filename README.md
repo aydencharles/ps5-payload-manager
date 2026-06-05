@@ -17,8 +17,10 @@
 - **Web 界面**：通过电脑、手机或 PS5 本身管理 payload。
 - **导入 Payload**：从 USB 设备添加新的 payload，或从云端仓库下载。
 - **自动启动**：配置启动列表，在管理器启动时自动加载指定 payload。
-- **主屏幕快捷方式**：在 PS5 主屏幕安装专用的 “Payload Manager” 应用图标，方便快速访问。
+- **主屏幕快捷方式**：在 PS5 主屏幕安装专用的 "Payload Manager" 应用图标，方便快速访问。
 - **自动关闭光盘播放器**：可选设置，在启动时自动关闭光盘播放器（适用于 BD-JB 用户）。
+- **多源仓库**：支持第三方 payload 仓库，可在管理标签页中按分类分组查看。
+- **进程管理**：查看和管理运行中的系统进程与 payload 进程。
 
 
 ## 安装
@@ -37,9 +39,13 @@
 ### 独立运行 / 手动加载
 你也可以像加载其他 `.elf` 文件一样手动加载管理器。请从 [Releases](https://github.com/itsPLK/ps5-payload-manager/releases) 页面获取最新版本。
 
+## 自定义仓库
+你可以向管理器添加第三方 payload 仓库。要了解如何创建自己的仓库 JSON 并进行托管，请参阅[自定义仓库指南](CUSTOM_REPOSITORIES.md)。
+
 ## 致谢
 - [John Törnblom](https://github.com/john-tornblom) - 提供 [shell UI 安装程序](https://github.com/ps5-payload-dev/ftpsrv/blob/master/install-ps5.c)，以及作为参考的多个 payload。
 - [BenNoxXD](https://github.com/BenNoxXD) - 提供 [光盘播放器应用终止逻辑](https://github.com/BenNoxXD/PS5-BDJ-HEN-loader/blob/main/HENloader_C_part/src/kill_disc_player.c)。
+- [owendswang](https://github.com/owendswang) - [贡献](https://github.com/itsPLK/ps5-payload-manager/commits/main/?author=owendswang)
 - 所有为 PS5 自制软件社区做出贡献的人。
 
 ## 捐赠

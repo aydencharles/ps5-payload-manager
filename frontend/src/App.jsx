@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import {
   Settings,
@@ -34,6 +34,8 @@ import DonateView from './components/views/DonateView'
 import AutoloadOverlay from './components/views/AutoloadOverlay'
 import MoveFromUsbView from './components/views/MoveFromUsbView'
 import LogViewer from './components/views/LogViewer'
+import ManageSourcesView from './components/views/ManageSourcesView'
+import ActiveProcessesView from './components/views/ActiveProcessesView'
 
 function App() {
   const { t } = useTranslation()
@@ -69,6 +71,8 @@ function App() {
   const [moveFromUsbPath, setMoveFromUsbPath] = useState(null)
   const [storageScrollTarget, setStorageScrollTarget] = useState(null)
   const [showLogs, setShowLogs] = useState(false)
+  // Map filename -> metadata (source_name, etc.)
+  const [payloadMeta, setPayloadMeta] = useState({})
 
   useEffect(() => {
     if (!showLogs) return
@@ -83,6 +87,18 @@ function App() {
 
 
 
+  const showConfirm = (title, message, onConfirm) => {
+    setConfirmModal({
+      show: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmModal({ show: false })
+        onConfirm()
+      }
+    })
+  }
+
   const addToast = (message, type = 'success') => {
     const id = Date.now()
     setToasts(prev => [...prev, { id, message, type }])
@@ -92,7 +108,7 @@ function App() {
     setToasts(prev => prev.filter(t => t.id !== id))
   }
 
-  const api = useCallback(async (endpoint, options = {}) => {
+  const api = async (endpoint, options = {}) => {
     try {
       const response = await fetch(endpoint, options)
       if (options.method === 'POST') return response.text()
@@ -102,13 +118,12 @@ function App() {
         return JSON.parse(text)
       } catch { return null }
     } catch { return null }
-  }, [])
+  }
 
-  const refreshPayloads = useCallback(async function refreshPayloadsInner(retryCount = 0) {
+  const refreshPayloads = async (retryCount = 0) => {
     setLoadingPayloads(true)
     const data = await api('/list_payloads')
     if (data?.payloads) {
-      // Sort payloads: internal first, USB last
       const sorted = [...data.payloads].sort((a, b) => {
         const aIsUsb = a.startsWith('/mnt/usb')
         const bIsUsb = b.startsWith('/mnt/usb')
@@ -117,18 +132,22 @@ function App() {
         return a.localeCompare(b)
       })
       setPayloads(sorted)
+      // Build metadata map: filename -> meta object
+      if (data.meta && typeof data.meta === 'object') {
+        setPayloadMeta(data.meta)
+      }
       setLoadingPayloads(false)
     } else if (retryCount < 5) {
-      setTimeout(() => refreshPayloadsInner(retryCount + 1), 1000)
+      setTimeout(() => refreshPayloads(retryCount + 1), 1000)
     } else {
       setLoadingPayloads(false)
     }
-  }, [api])
+  }
 
-  const refreshConfig = useCallback(async () => {
+  const refreshConfig = async () => {
     const data = await api('/get_config')
     if (data) setConfig(data)
-  }, [api])
+  }
 
   const handleAbort = async () => {
     await fetch('/abort').catch(() => { })
@@ -159,12 +178,10 @@ function App() {
   }
 
   const handleDelete = (fileName) => {
-    setConfirmModal({
-      show: true,
-      title: t('modal.deletePayloadTitle'),
-      message: t('modal.deletePayloadMessage', { fileName }),
-      onConfirm: async () => {
-        setConfirmModal({ show: false })
+    showConfirm(
+      t('modal.deletePayloadTitle'),
+      t('modal.deletePayloadMessage', { fileName }),
+      async () => {
         const res = await fetch(`/manage:delete?filename=${encodeURIComponent(fileName)}`)
         if (!res.ok) {
           addToast(t('toast.deleteFailed', { status: res.status }), 'error')
@@ -173,7 +190,7 @@ function App() {
         refreshPayloads()
         addToast(t('toast.removed', { fileName }))
       }
-    })
+    )
   }
 
   const handleUpload = async (e) => {
@@ -219,27 +236,27 @@ function App() {
     setTimeout(() => setDownloadModal({ show: false }), 800)
   }
 
-  const handleInstall = async (p, repoUrl) => {
+  const handleInstall = async (p, sourceId, repoUrl) => {
     if (p.isUpdate || p.isInstalled) {
-      setConfirmModal({
-        show: true,
-        title: p.isUpdate ? t('modal.updatePayloadTitle') : t('modal.reinstallPayloadTitle'),
-        message: t('modal.reinstallPayloadMessage', { name: p.name || p.filename }),
-        onConfirm: () => performInstall(p, repoUrl)
-      })
+      showConfirm(
+        p.isUpdate ? t('modal.updatePayloadTitle') : t('modal.reinstallPayloadTitle'),
+        t('modal.reinstallPayloadMessage', { name: p.name || p.filename }),
+        () => performInstall(p, sourceId, repoUrl)
+      )
     } else {
-      performInstall(p, repoUrl)
+      performInstall(p, sourceId, repoUrl)
     }
   }
 
-  const performInstall = async (p, repoUrl) => {
+  const performInstall = async (p, sourceId, repoUrl) => {
     setConfirmModal({ show: false })
     setDownloadModal({ show: true, name: p.filename, progress: 10 })
     try {
       setDownloadModal(prev => ({ ...prev, progress: 30 }))
-      const res = await fetch(
-        `/repository_install?filename=${encodeURIComponent(p.filename)}&repo_url=${encodeURIComponent(repoUrl || '')}`
-      )
+      let url = `/repository_install?filename=${encodeURIComponent(p.filename)}`
+      if (sourceId) url += `&source_id=${encodeURIComponent(sourceId)}`
+      if (repoUrl) url += `&repo_url=${encodeURIComponent(repoUrl)}`
+      const res = await fetch(url)
       setDownloadModal(prev => ({ ...prev, progress: 80 }))
 
       const data = await res.json().catch(() => null)
@@ -299,14 +316,17 @@ function App() {
       }
     }
     init()
-  }, [refreshConfig, refreshPayloads])
+  }, [])
+
+
+
 
   useEffect(() => {
     if (view === 'autoload' || view === 'storage') {
       refreshConfig()
       refreshPayloads()
     }
-  }, [view, refreshConfig, refreshPayloads])
+  }, [view])
 
   useEffect(() => {
     let statusTimeout
@@ -427,6 +447,7 @@ function App() {
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label={t('nav.dashboard')} />
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'storage'} onClick={() => setView('storage')} icon={Database} label={t('nav.managePayloads')} />
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'autoload'} onClick={() => setView('autoload')} icon={RefreshCw} label={t('nav.autoload')} />
+            <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'processes'} onClick={() => setView('processes')} icon={Cpu} label={t('nav.activeProcesses')} />
             <NavButton sidebar sidebarExpanded={sidebarExpanded} active={view === 'settings'} onClick={() => setView('settings')} icon={Settings} label={t('common.settings')} />
           </nav>
 
@@ -438,7 +459,6 @@ function App() {
               onClick={() => setView('donate')}
               icon={Heart}
               label={t('nav.donate')}
-              tone="danger"
               className={view === 'donate' ? "bg-red-600" : "text-red-500 hover:bg-red-600/10"}
             />
           </div>
@@ -453,6 +473,7 @@ function App() {
         <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label={t('nav.dashboard')} mobileLabel={t('nav.homeMobile')} />
         <NavButton showSeparator active={view === 'storage'} onClick={() => setView('storage')} icon={Database} label={t('nav.managePayloads')} mobileLabel={t('nav.manageMobile')} />
         <NavButton showSeparator active={view === 'autoload'} onClick={() => setView('autoload')} icon={RefreshCw} label={t('nav.autoload')} mobileLabel={t('nav.autoloadMobile')} />
+        <NavButton showSeparator active={view === 'processes'} onClick={() => setView('processes')} icon={Cpu} label={t('nav.activeProcesses')} mobileLabel={t('nav.processesMobile')} />
         <NavButton showSeparator active={view === 'settings'} onClick={() => setView('settings')} icon={Settings} label={t('common.settings')} mobileLabel={t('nav.settingsMobile')} />
         <NavButton
           showSeparator
@@ -461,7 +482,6 @@ function App() {
           icon={Heart}
           label={t('nav.donate')}
           mobileLabel={t('nav.donateMobile')}
-          tone="danger"
         />
       </nav>
 
@@ -506,6 +526,7 @@ function App() {
                       path={p}
                       onClick={() => loadPayload(p)}
                       isLoading={loading && activeLoadingName === p.split('/').pop().replace(/\.(elf|bin|lua)$/i, '').replace(/_/g, ' ')}
+                      sourceName={config.MULTI_SOURCES_ENABLED ? (payloadMeta[p.split('/').pop()]?.source_name || null) : null}
                     />
                   ))
                 )}
@@ -516,6 +537,7 @@ function App() {
           {view === 'storage' && (
             <StorageHub
               payloads={payloads}
+              payloadMeta={payloadMeta}
               onInstall={handleInstall}
               onDelete={handleDelete}
               onUpload={handleUpload}
@@ -562,8 +584,28 @@ function App() {
               setLogs={setLogs}
               showLogs={showLogs}
               setShowLogs={setShowLogs}
+              onNavigate={(v) => setView(v)}
             />
-          )}{view === 'donate' && <DonateView />}
+          )}
+
+          {view === 'sources' && (
+            <ManageSourcesView
+              onBack={() => setView('settings')}
+              ip={ip}
+              addToast={addToast}
+              showConfirm={showConfirm}
+            />
+          )}
+
+          {view === 'processes' && (
+            <ActiveProcessesView
+              ip={ip}
+              addToast={addToast}
+              showConfirm={showConfirm}
+            />
+          )}
+
+          {view === 'donate' && <DonateView />}
         </main>
       </div>
 

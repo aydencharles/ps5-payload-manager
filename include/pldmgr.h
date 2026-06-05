@@ -26,11 +26,18 @@
 #define ROUTE_REPO_INSTALL "/repository_install"
 #define ROUTE_REPO_PUSH "/repository_push"
 #define ROUTE_REPO_INSTALL_PUSH "/repository_install_push"
+#define ROUTE_SOURCES_LIST "/sources_list"
+#define ROUTE_SOURCES_SET "/sources_set"
+#define ROUTE_SOURCES_ADD "/sources_add"
+#define ROUTE_SOURCES_REMOVE "/sources_remove"
 #define ROUTE_USB_MOVE_CHECK "/usb_move_check"
 #define ROUTE_USB_MOVE_PERFORM "/usb_move_perform"
 #define ROUTE_CACHE_MANIFEST "/cache.appcache"
 
-#define MENU_VERSION "0.2.0"
+#define ROUTE_PROCESSES_LIST "/processes_list"
+#define ROUTE_PROCESS_KILL "/process_kill"
+
+#define MENU_VERSION "0.3.0"
 #define AUTOLOAD_CONFIG_PATH "/data/pldmgr/autoload.txt"
 #define PLDMGR_CONFIG_PATH "/data/pldmgr/pldmgr_config.txt"
 #define REPOSITORY_CACHE_PATH "/data/pldmgr/repository_cache.json"
@@ -39,10 +46,9 @@
   "https://itsplk.github.io/ps5-payloads-mirror/payloads.json"
 #define REPOSITORY_REFRESH_INTERVAL_SEC 86400
 
-/* Logging */
+/* Logging (implementation in log_server.c) */
 void pldmgr_log(const char *fmt, ...);
 int pldmgr_server_is_active();
-int pldmgr_read_config_bool(const char *key, int default_val);
 
 #include "autoload.h"
 #include "notification.h"
@@ -50,6 +56,8 @@ int pldmgr_read_config_bool(const char *key, int default_val);
 
 /* Paths */
 #define BASE_DATA_DIR "/data/pldmgr"
+#define SOURCES_CONFIG_PATH "/data/pldmgr/sources.json"
+#define MAX_SOURCES 9
 
 /* Scan Locations (Internal + 8 USB ports) */
 static const char *SCAN_DIRS[] = {
