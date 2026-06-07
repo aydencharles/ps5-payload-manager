@@ -35,23 +35,23 @@ const MoveFromUsbView = ({ path, onBack, onComplete, addToast }) => {
     return () => window.clearTimeout(timer)
   }, [checkPayload])
 
-  const performMove = async (overwrite = false) => {
+  const performMove = async (overwrite = false, keepOriginal = false) => {
     setStatus('processing')
     try {
-      const res = await fetch(`/usb_move_perform?path=${encodeURIComponent(path)}&overwrite=${overwrite}`)
+      const res = await fetch(`/usb_move_perform?path=${encodeURIComponent(path)}&overwrite=${overwrite}&keep_original=${keepOriginal}`)
       const data = await res.json()
       if (data.error) {
         setErrorMsg(data.error)
         setStatus('error')
       } else {
         setStatus('success')
-        addToast(data.warning || t('moveFromUsb.movedToast'))
+        addToast(data.warning || (keepOriginal ? t('moveFromUsb.copiedToast') : t('moveFromUsb.movedToast')))
         setTimeout(() => {
           onComplete()
         }, 2000)
       }
-    } catch {
-      setErrorMsg(t('moveFromUsb.moveFailed'))
+    } catch (e) {
+      setErrorMsg(t('moveFromUsb.operationFailed'))
       setStatus('error')
     }
   }
@@ -133,7 +133,10 @@ const MoveFromUsbView = ({ path, onBack, onComplete, addToast }) => {
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <button onClick={onBack} className="flex-1 py-4 md:py-6 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold uppercase transition-all">{t('common.cancel')}</button>
-              <button onClick={() => performMove(true)} className="flex-1 py-4 md:py-6 rounded-2xl bg-ps-blue hover:bg-ps-blue/80 text-white font-black uppercase italic text-lg md:text-xl transition-all shadow-xl shadow-ps-blue/20">{t('moveFromUsb.overwriteExisting')}</button>
+              <div className="flex flex-1 gap-2">
+                <button onClick={() => performMove(true, true)} className="flex-1 py-4 md:py-6 rounded-2xl bg-ps-blue/50 hover:bg-ps-blue/70 text-white font-black uppercase italic text-sm md:text-lg transition-all border border-ps-blue/30">{t('moveFromUsb.overwriteAndCopy')}</button>
+                <button onClick={() => performMove(true, false)} className="flex-1 py-4 md:py-6 rounded-2xl bg-ps-blue hover:bg-ps-blue/80 text-white font-black uppercase italic text-sm md:text-lg transition-all shadow-xl shadow-ps-blue/20">{t('moveFromUsb.overwriteAndMove')}</button>
+              </div>
             </div>
           </div>
         )}
@@ -149,7 +152,10 @@ const MoveFromUsbView = ({ path, onBack, onComplete, addToast }) => {
                 </p>
               </div>
             </div>
-            <button onClick={() => performMove(false)} className="w-full py-4 md:py-6 rounded-2xl bg-ps-blue hover:bg-ps-blue/80 text-white font-black uppercase italic text-xl md:text-2xl transition-all shadow-2xl shadow-ps-blue/30">{t('moveFromUsb.moveToInternalStorage')}</button>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button onClick={() => performMove(false, true)} className="flex-1 py-4 md:py-6 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black uppercase italic text-lg md:text-xl transition-all border border-white/20">{t('moveFromUsb.copyToInternal')}</button>
+              <button onClick={() => performMove(false, false)} className="flex-1 py-4 md:py-6 rounded-2xl bg-ps-blue hover:bg-ps-blue/80 text-white font-black uppercase italic text-lg md:text-xl transition-all shadow-2xl shadow-ps-blue/30">{t('moveFromUsb.moveToInternalStorage')}</button>
+            </div>
           </div>
         )}
 
@@ -157,7 +163,7 @@ const MoveFromUsbView = ({ path, onBack, onComplete, addToast }) => {
           <div className="py-20 flex flex-col items-center justify-center space-y-8 text-center">
             <div className="ps5-robust-spinner" />
             <div className="space-y-2">
-              <p className="text-2xl font-black text-white uppercase italic tracking-tighter animate-pulse">{t('moveFromUsb.movingPayload')}</p>
+              <p className="text-2xl font-black text-white uppercase italic tracking-tighter animate-pulse">{t('moveFromUsb.importingPayload')}</p>
               <p className="text-zinc-500">{t('moveFromUsb.processingDescription')}</p>
             </div>
           </div>

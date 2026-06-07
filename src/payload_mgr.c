@@ -112,7 +112,9 @@ typedef struct {
 } PayloadEntry;
 
 static void scan_payloads_recursive(const char *dir_path, int is_storage,
-                                    PayloadEntry **out, int *count, int max) {
+                                    PayloadEntry **out, int *count, int max, int max_depth) {
+    if (max_depth < 0) return;
+
     DIR *d = opendir(dir_path);
     if (!d) return;
 
@@ -129,7 +131,7 @@ static void scan_payloads_recursive(const char *dir_path, int is_storage,
             continue;
 
         if (S_ISDIR(st.st_mode)) {
-            scan_payloads_recursive(full_path, is_storage, out, count, max);
+            scan_payloads_recursive(full_path, is_storage, out, count, max, max_depth - 1);
             continue;
         }
 
@@ -199,7 +201,7 @@ size_t payload_mgr_list_json(char *json_buf, size_t buf_size) {
 
     /* Scan pldmgr subdirs (this includes PAYLOADS_STORAGE_DIR under /data/pldmgr) */
     for (int i = 0; i < SCAN_DIRS_COUNT; i++) {
-        scan_payloads_recursive(SCAN_DIRS[i], 0, &payloads, &count, max);
+        scan_payloads_recursive(SCAN_DIRS[i], 0, &payloads, &count, max, 3);
     }
 
     /* Optionally scan USB root directories */
@@ -209,7 +211,7 @@ size_t payload_mgr_list_json(char *json_buf, size_t buf_size) {
             snprintf(usb_root, sizeof(usb_root), "/mnt/usb%d", usb);
             struct stat st;
             if (stat(usb_root, &st) == 0 && S_ISDIR(st.st_mode))
-                scan_payloads_recursive(usb_root, 0, &payloads, &count, max);
+                scan_payloads_recursive(usb_root, 0, &payloads, &count, max, 0);
         }
     }
 
@@ -417,7 +419,7 @@ int payload_mgr_usb_check(const char *usb_path, char *out_json, size_t out_size)
     return 0;
 }
 
-int payload_mgr_usb_move(const char *usb_path, int overwrite, char *out_json,
+int payload_mgr_usb_move(const char *usb_path, int overwrite, int keep_original, char *out_json,
                          size_t out_size) {
     if (!is_allowed_usb_path(usb_path)) {
         snprintf(out_json, out_size, "{\"ok\":false,\"message\":\"Invalid USB path\"}");
@@ -465,7 +467,18 @@ int payload_mgr_usb_move(const char *usb_path, int overwrite, char *out_json,
     snprintf(details_path, sizeof(details_path), "%s/%s.json", payload_dir, filename);
     write_simple_payload_details_json(filename, details_path, "usb", usb_path);
 
-    pldmgr_log("[PLDMGR] USB payload moved: %s -> %s\n", usb_path, final_path);
-    snprintf(out_json, out_size, "{\"ok\":true,\"message\":\"Moved successfully\"}");
+    /* Remove the original file if not copying */
+    if (!keep_original) {
+        if (remove(usb_path) != 0) {
+            pldmgr_log("[PLDMGR] Warning: Failed to remove original file from USB: %s\n", usb_path);
+            snprintf(out_json, out_size, "{\"ok\":true,\"message\":\"Moved successfully\",\"warning\":\"Payload copied, but failed to delete original from USB.\"}");
+        } else {
+            pldmgr_log("[PLDMGR] USB payload moved: %s -> %s\n", usb_path, final_path);
+            snprintf(out_json, out_size, "{\"ok\":true,\"message\":\"Moved successfully\"}");
+        }
+    } else {
+        pldmgr_log("[PLDMGR] USB payload copied: %s -> %s\n", usb_path, final_path);
+        snprintf(out_json, out_size, "{\"ok\":true,\"message\":\"Copied successfully\"}");
+    }
     return 0;
 }
